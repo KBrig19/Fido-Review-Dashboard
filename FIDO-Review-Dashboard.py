@@ -93,9 +93,3 @@ if st.session_state.page == "brand_review":
             }
             st.success(f"✅ Saved {row['FIDO']}")
 """
-
-# Save to file
-with open("/mnt/data/Updated_Brand_Review_Page.py", "w") as f:
-    f.write(updated_code)
-
-"/mnt/data/Updated_Brand_Review_Page.py"
