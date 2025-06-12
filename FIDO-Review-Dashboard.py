@@ -1,67 +1,82 @@
-# Append the remaining logic to the optimized Streamlit app file
-additional_code = """
-# --- Brand Review Page ---
-if st.session_state.page == "brand_review":
+import streamlit as st
+import pandas as pd
+
+st.set_page_config(page_title="FIDO Brand Review Projects", layout="wide")
+
+# Session state to manage uploaded file and project view
+if "project_data" not in st.session_state:
+    st.session_state.project_data = None
+if "selected_brand" not in st.session_state:
+    st.session_state.selected_brand = None
+
+st.title("🗂️ FIDO Review Project Dashboard")
+
+# Step 1: Upload CSV file
+uploaded_file = st.file_uploader("📤 Upload a FIDO Review File (CSV)", type="csv")
+
+if uploaded_file:
+    df = pd.read_csv(uploaded_file)
+    st.session_state.project_data = df
+    st.session_state.selected_brand = None  # Reset on new upload
+
+# Step 2: Show brand list if file uploaded
+if st.session_state.project_data is not None and st.session_state.selected_brand is None:
+    df = st.session_state.project_data
+    brand_list = sorted(df["BRAND"].dropna().unique().tolist())
+    st.markdown("### 📋 Available Brand Projects")
+    for brand in brand_list:
+        if st.button(f"🔎 Review '{brand}'"):
+            st.session_state.selected_brand = brand
+            break
+
+# Step 3: Show review UI for selected brand
+if st.session_state.project_data is not None and st.session_state.selected_brand is not None:
     df = st.session_state.project_data
     brand = st.session_state.selected_brand
     brand_df = df[df["BRAND"] == brand].copy().reset_index(drop=True)
 
-    st.markdown(f"<div class='sticky-header'><h2>🧾 Reviewing Brand: {brand}</h2></div>", unsafe_allow_html=True)
+    st.markdown(f"## 🧾 Reviewing Brand: **{brand}**")
+    updated_rows = []
 
-    st.sidebar.header("View Options")
-    view_choice = st.sidebar.radio("Select View Mode:", ["Fast View", "Full View"])
-    st.session_state.view_mode = view_choice
+    for i, row in brand_df.iterrows():
+        with st.expander(f"FIDO: {row['FIDO']}", expanded=False):
+            st.write(f"**Original Description:** {row['DESCRIPTION']}")
+            st.write(f"**Original Category:** {row['CATEGORY']}")
+            st.write(f"**Original Brand:** {row['BRAND']}")
+            st.write(f"**Brand Status:** {row['Is Brand ID Null?']}")
+            st.write(f"**GMV:** {row['GMV L365d from Data Pull Date']}")
 
-    total_pages = (len(brand_df) - 1) // FIDOS_PER_PAGE + 1
-    start_idx = st.session_state.page_number * FIDOS_PER_PAGE
-    end_idx = start_idx + FIDOS_PER_PAGE
-    paginated_df = brand_df.iloc[start_idx:end_idx]
+            updated_description = st.text_area("📝 Updated Description", value=row['DESCRIPTION'], key=f"desc_{i}")
+            updated_category = st.text_input("📦 Updated Category", value=row['CATEGORY'], key=f"cat_{i}")
+            updated_brand = st.text_input("🏷️ Updated Brand", value=row['BRAND'], key=f"brand_{i}")
+            mark_correct = st.checkbox("✅ Mark as Correct", key=f"correct_{i}")
+            reviewer_notes = st.text_input("🗒️ Reviewer Notes", key=f"note_{i}")
 
-    st.sidebar.markdown("### Page Navigation")
-    if st.sidebar.button("⬅️ Previous") and st.session_state.page_number > 0:
-        st.session_state.page_number -= 1
-    if st.sidebar.button("➡️ Next") and st.session_state.page_number < total_pages - 1:
-        st.session_state.page_number += 1
-    st.sidebar.markdown(f"Page {st.session_state.page_number + 1} of {total_pages}")
+            updated_rows.append({
+                "FIDO": row["FIDO"],
+                "BARCODE": row["BARCODE"],
+                "Original Description": row["DESCRIPTION"],
+                "Updated Description": updated_description,
+                "Original Category": row["CATEGORY"],
+                "Updated Category": updated_category,
+                "Original Brand": row["BRAND"],
+                "Updated Brand": updated_brand,
+                "Is Brand ID Null?": row["Is Brand ID Null?"],
+                "GMV L365d from Data Pull Date": row["GMV L365d from Data Pull Date"],
+                "Mark as Correct": mark_correct,
+                "Reviewer Notes": reviewer_notes
+            })
 
-    with st.sidebar:
-        if st.button("💾 Save All (This Page)"):
-            for i, row in paginated_df.iterrows():
-                fido = row["FIDO"]
-                st.session_state.saved_reviews[fido] = {
-                    "FIDO": fido,
-                    "BARCODE": row["BARCODE"],
-                    "Original Description": row["DESCRIPTION"],
-                    "Updated Description": st.session_state.get(f"desc_{i}", row["DESCRIPTION"]),
-                    "Original Category": row["CATEGORY"],
-                    "Updated Category": st.session_state.get(f"cat_{i}", row["CATEGORY"]),
-                    "Original Brand": row["BRAND"],
-                    "Updated Brand": st.session_state.get(f"brand_{i}", row["BRAND"]),
-                    "BRAND_ID": row.get("BRAND_ID", ""),
-                    "Is Brand ID Null?": row["Is Brand ID Null?"],
-                    "GMV L365d from Data Pull Date": row["GMV L365d from Data Pull Date"],
-                    "No Change": st.session_state.get(f"correct_{i}", False),
-                    "Reviewer Notes": st.session_state.get(f"note_{i}", ""),
-                    "Reviewed By": st.session_state.reviewer_name,
-                    "Review Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                }
-            st.success("✅ All changes saved.")
+    # Export section
+    st.markdown("### 📤 Export Reviewed FIDOs")
+    reviewed_df = pd.DataFrame(updated_rows)
+    csv = reviewed_df.to_csv(index=False).encode("utf-8")
+    st.download_button(
+        label="⬇️ Download Reviewed CSV",
+        data=csv,
+        file_name=f"Reviewed_{brand.replace(' ', '_')}_FIDO.csv",
+        mime="text/csv"
+    )
 
-        if st.session_state.role == "admin" and st.session_state.saved_reviews:
-            export_df = pd.DataFrame(st.session_state.saved_reviews.values())
-            csv = export_df.to_csv(index=False).encode("utf-8")
-            st.download_button(
-                label="⬇️ Download Reviewed Data",
-                data=csv,
-                file_name=f"Reviewed_{brand.replace(' ', '_')}_FIDO.csv",
-                mime="text/csv"
-            )
-
-        if st.button("🔙 Back to Brand List"):
-            st.session_state.page = "brand_list"
-            st.session_state.selected_brand = None
-
-    for i, row in paginated_df.iterrows():
-        show_block = (st.session_state.view_mode == "Full View") or st.expander(f"FIDO: {row['FIDO']}", expanded=False)
-        if st.session_state.view_mode == "Full View" or show_block:
-            st.subheader(f"FIDO: {row['F
+    if st.button("🔙 Back to Project List"):
+        st.session_state.selected_brand = None
