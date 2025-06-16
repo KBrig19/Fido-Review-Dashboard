@@ -88,6 +88,12 @@ if st.session_state.page == "brand_review":
     # Floating control panel
     with st.sidebar:
         st.markdown("### 🛠️ Controls")
+        # --- UPC Lookup Sidebar Tool ---
+st.markdown("### 🔎 Search UPC on BarcodeLookup")
+upc_input = st.text_input("Enter UPC", key="upc_lookup_input")
+if upc_input:
+    upc_url = f"https://barcodelookup1.streamlit.app/?search={upc_input}"
+    st.markdown(f"[🔗 Search '{upc_input}' on BarcodeLookup]({upc_url})", unsafe_allow_html=True)
         if st.button("💾 Save All"):
             for i, row in brand_df.iterrows():
                 fido = row["FIDO"]
