@@ -1,3 +1,11 @@
+# Compose the full working version of the Streamlit app with all requested features:
+# - Admin/reviewer mode
+# - Project upload and navigation
+# - Individual 'No Change' options
+# - Sidebar controls
+# - UPC search tool in the sidebar
+
+full_code = '''
 import streamlit as st
 import pandas as pd
 
@@ -88,12 +96,6 @@ if st.session_state.page == "brand_review":
     # Floating control panel
     with st.sidebar:
         st.markdown("### 🛠️ Controls")
-        # --- UPC Lookup Sidebar Tool ---
-st.markdown("### 🔎 Search UPC on BarcodeLookup")
-upc_input = st.text_input("Enter UPC", key="upc_lookup_input")
-if upc_input:
-    upc_url = f"https://barcodelookup1.streamlit.app/?search={upc_input}"
-    st.markdown(f"[🔗 Search '{upc_input}' on BarcodeLookup]({upc_url})", unsafe_allow_html=True)
         if st.button("💾 Save All"):
             for i, row in brand_df.iterrows():
                 fido = row["FIDO"]
@@ -101,16 +103,18 @@ if upc_input:
                     "FIDO": fido,
                     "BARCODE": row["BARCODE"],
                     "Original Description": row["DESCRIPTION"],
-                    "Updated Description": st.session_state.get(f"desc_{i}", row["DESCRIPTION"]),
+                    "Updated Description": st.session_state.get(f"desc_{i}", row["DESCRIPTION"]) if not st.session_state.get(f"desc_nc_{i}", False) else row["DESCRIPTION"],
                     "Original Category": row["CATEGORY"],
-                    "Updated Category": st.session_state.get(f"cat_{i}", row["CATEGORY"]),
+                    "Updated Category": st.session_state.get(f"cat_{i}", row["CATEGORY"]) if not st.session_state.get(f"cat_nc_{i}", False) else row["CATEGORY"],
                     "Original Brand": row["BRAND"],
-                    "Updated Brand": st.session_state.get(f"brand_{i}", row["BRAND"]),
+                    "Updated Brand": st.session_state.get(f"brand_{i}", row["BRAND"]) if not st.session_state.get(f"brand_nc_{i}", False) else row["BRAND"],
                     "BRAND_ID": row.get("BRAND_ID", ""),
                     "Is Brand ID Null?": row["Is Brand ID Null?"],
                     "GMV L365d from Data Pull Date": row["GMV L365d from Data Pull Date"],
-                    "No Change": st.session_state.get(f"correct_{i}", False),
-                    "Reviewer Notes": st.session_state.get(f"note_{i}", "")
+                    "Reviewer Notes": st.session_state.get(f"note_{i}", ""),
+                    "No Change - Description": st.session_state.get(f"desc_nc_{i}", False),
+                    "No Change - Category": st.session_state.get(f"cat_nc_{i}", False),
+                    "No Change - Brand": st.session_state.get(f"brand_nc_{i}", False)
                 }
             st.success("✅ All changes saved.")
 
@@ -128,11 +132,19 @@ if upc_input:
             st.session_state.page = "brand_list"
             st.session_state.selected_brand = None
 
+        # --- UPC Lookup Sidebar Tool ---
+        st.markdown("### 🔎 Search UPC on BarcodeLookup")
+        upc_input = st.text_input("Enter UPC", key="upc_lookup_input")
+        if upc_input:
+            upc_url = f"https://barcodelookup1.streamlit.app/?search={upc_input}"
+            st.markdown(f"[🔗 Search '{upc_input}' on BarcodeLookup]({upc_url})", unsafe_allow_html=True)
+
     # Main FIDO Display Loop
     for i, row in brand_df.iterrows():
         st.markdown("----")
         st.subheader(f"FIDO: {row['FIDO']}")
-        st.text(f"UPC: {row['BARCODE']}")
+        upc = row["BARCODE"]
+        st.markdown(f"**UPC:** [{upc}](https://barcodelookup1.streamlit.app/?search={upc}) 🔍", unsafe_allow_html=True)
         st.text(f"Brand ID: {row.get('BRAND_ID', 'N/A')}")
         st.text(f"Original Brand: {row['BRAND']}")
         st.text(f"Category: {row['CATEGORY']}")
@@ -140,11 +152,16 @@ if upc_input:
         st.text(f"GMV: {row['GMV L365d from Data Pull Date']}")
         st.text(f"Brand ID Status: {row['Is Brand ID Null?']}")
 
-        # Inputs
-        updated_desc = st.text_area(f"📝 Updated Description", value=row["DESCRIPTION"], key=f"desc_{i}")
-        updated_cat = st.text_input(f"📦 Updated Category", value=row["CATEGORY"], key=f"cat_{i}")
-        updated_brand = st.text_input(f"🏷️ Updated Brand", value=row["BRAND"], key=f"brand_{i}")
-        mark_correct = st.checkbox("✅ No Change", key=f"correct_{i}")
+        # Individual no-change toggles and inputs
+        no_change_desc = st.checkbox("📝 No Change to Description", key=f"desc_nc_{i}")
+        updated_desc = row["DESCRIPTION"] if no_change_desc else st.text_area("Updated Description", value=row["DESCRIPTION"], key=f"desc_{i}")
+
+        no_change_cat = st.checkbox("📦 No Change to Category", key=f"cat_nc_{i}")
+        updated_cat = row["CATEGORY"] if no_change_cat else st.text_input("Updated Category", value=row["CATEGORY"], key=f"cat_{i}")
+
+        no_change_brand = st.checkbox("🏷️ No Change to Brand", key=f"brand_nc_{i}")
+        updated_brand = row["BRAND"] if no_change_brand else st.text_input("Updated Brand", value=row["BRAND"], key=f"brand_{i}")
+
         reviewer_note = st.text_input("🗒️ Notes", key=f"note_{i}")
 
         if st.button(f"💾 Save FIDO {row['FIDO']}", key=f"save_{i}"):
@@ -160,7 +177,16 @@ if upc_input:
                 "BRAND_ID": row.get("BRAND_ID", ""),
                 "Is Brand ID Null?": row["Is Brand ID Null?"],
                 "GMV L365d from Data Pull Date": row["GMV L365d from Data Pull Date"],
-                "No Change": mark_correct,
-                "Reviewer Notes": reviewer_note
+                "Reviewer Notes": reviewer_note,
+                "No Change - Description": no_change_desc,
+                "No Change - Category": no_change_cat,
+                "No Change - Brand": no_change_brand
             }
             st.success(f"✅ Saved {row['FIDO']}")
+'''
+
+# Save full code to file
+with open("/mnt/data/FIDO_Review_App_With_UPC_Search.py", "w") as f:
+    f.write(full_code)
+
+"/mnt/data/FIDO_Review_App_With_UPC_Search.py"
