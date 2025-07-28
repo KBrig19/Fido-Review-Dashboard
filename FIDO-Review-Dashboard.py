@@ -1,160 +1,312 @@
-import streamlit as st
-import pandas as pd
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FIDO Review Tool</title>
+').filter(line => line.trim()) // simulate parsing
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+  // --- JS CODE START ---
+  function handleUpload() {
+    const queue = document.getElementById('projectQueue').value;
+    const fileInput = document.getElementById('fileUpload');
+    const file = fileInput.files[0];
+    if (!file) return alert("Please select a file to upload.");
 
-# --- Session Setup ---
-if "role" not in st.session_state:
-    st.session_state.role = None
-if "page" not in st.session_state:
-    st.session_state.page = "login"
-if "project_data" not in st.session_state:
-    st.session_state.project_data = None
-if "selected_brand" not in st.session_state:
-    st.session_state.selected_brand = None
-if "saved_reviews" not in st.session_state:
-    st.session_state.saved_reviews = {}
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const content = e.target.result;
+      const project = {
+        name: file.name,
+        type: queue,
+        data: content.split('\n').filter(line => line.trim()) // simulate parsing
+      };
+      let stored = JSON.parse(localStorage.getItem("projects") || "[]");
+      stored.push(project);
+      localStorage.setItem("projects", JSON.stringify(stored));
+      alert("✅ Project uploaded to " + queue + " queue.");
+      fileInput.value = "";
+    };
+    reader.readAsText(file);
+  }
 
-# --- Sticky Header and Sidebar Styling ---
-st.markdown("""
-    <style>
-    .sticky-header {
-        position: sticky;
-        top: 0;
-        background-color: #ffffff;
-        padding: 1rem 0;
-        z-index: 100;
-        border-bottom: 1px solid #ddd;
+  function showQueueProjects(queueType) {
+    const stored = JSON.parse(localStorage.getItem("projects") || "[]");
+    const filtered = stored.filter(p => p.type === queueType);
+    const container = document.getElementById("mainPage");
+    container.innerHTML = `<h2 class='text-xl font-semibold my-4'>${queueType.toUpperCase()} Projects</h2>`;
+    if (filtered.length === 0) {
+    container.innerHTML += '<p class="text-gray-600">No projects uploaded.</p>';
+    return;
+  }
+  filtered.forEach((proj, i) => {
+    const button = document.createElement("button");
+    button.textContent = proj.name;
+    button.className = "block w-full text-left bg-white dark:bg-gray-700 border p-3 mb-2 rounded hover:bg-blue-100 dark:hover:bg-gray-600";
+    button.onclick = () => renderProjectDetail(proj);
+    container.appendChild(button);
+  });
+}
+function submitFlag() {
+  const fido = document.getElementById('flagFido').value.trim();
+  const submitter = document.getElementById('flagSubmitter').value.trim();
+  const issue = document.getElementById('flagIssue').value.trim();
+  if (!fido || !submitter || !issue) {
+    alert("Please complete all fields.");
+    return;
+  }
+  const flags = JSON.parse(localStorage.getItem("flags") || "[]");
+  flags.push({ FIDO: fido, SubmittedBy: submitter, Issue: issue });
+  localStorage.setItem("flags", JSON.stringify(flags));
+  alert("🚩 Issue submitted and added to CATQ!");
+  document.getElementById('flagFido').value = '';
+  document.getElementById('flagSubmitter').value = '';
+  document.getElementById('flagIssue').value = '';
+  document.getElementById('flagForm').style.display = 'none';
+}
+function renderProjectDetail(project) {
+  const container = document.getElementById("mainPage");
+  container.innerHTML = `<h2 class='text-xl font-semibold my-4'>Editing: ${project.name}</h2>`;
+  const table = document.createElement("table");
+  table.className = "table-auto w-full border-collapse border border-gray-300 text-sm";
+  const rows = project.data;
+  const headers = rows[0].split(',');
+
+  const thead = document.createElement("thead");
+  const headerRow = document.createElement("tr");
+  headers.forEach(h => {
+    const th = document.createElement("th");
+    th.textContent = h;
+    th.className = "border bg-gray-100 px-2 py-1";
+    headerRow.appendChild(th);
+  });
+  ['Updated DESCRIPTION', 'Updated CATEGORY', 'Updated BRAND', 'Action'].forEach(h => {
+    const th = document.createElement("th");
+    th.textContent = h;
+    th.className = "border bg-gray-100 px-2 py-1";
+    headerRow.appendChild(th);
+  });
+  thead.appendChild(headerRow);
+  table.appendChild(thead);
+
+  const tbody = document.createElement("tbody");
+  for (let i = 1; i < rows.length; i++) {
+    const tr = document.createElement("tr");
+    const values = rows[i].split(',');
+    values.forEach(v => {
+      const td = document.createElement("td");
+      td.textContent = v;
+      td.className = "border px-2 py-1";
+      tr.appendChild(td);
+    });
+    ['desc','cat','brand'].forEach(type => {
+      const td = document.createElement("td");
+      const input = document.createElement("input");
+      input.className = "w-full border rounded px-1 py-0.5 text-sm";
+      input.placeholder = `Edit ${type}`;
+      td.appendChild(input);
+      td.className = "border px-2 py-1";
+      tr.appendChild(td);
+    });
+    const saveBtn = document.createElement("button");
+    saveBtn.textContent = "💾 Save";
+    saveBtn.className = "ml-2 text-sm bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600";
+    saveBtn.onclick = () => {
+      const original = values;
+      const updated = {
+        FIDO: original[0],
+        Original: {
+          DESCRIPTION: original[headers.indexOf("DESCRIPTION")],
+          CATEGORY: original[headers.indexOf("CATEGORY")],
+          BRAND: original[headers.indexOf("BRAND")]
+        },
+        Updated: {
+          DESCRIPTION: tr.querySelectorAll("input")[0]?.value || "",
+          CATEGORY: tr.querySelectorAll("input")[1]?.value || "",
+          BRAND: tr.querySelectorAll("input")[2]?.value || ""
+        }
+      };
+      const stored = JSON.parse(localStorage.getItem(`review_${project.name}`) || "[]");
+      const existingIndex = stored.findIndex(x => x.FIDO === updated.FIDO);
+      if (existingIndex >= 0) stored[existingIndex] = updated;
+      else stored.push(updated);
+      localStorage.setItem(`review_${project.name}`, JSON.stringify(stored));
+      alert(`✅ FIDO ${updated.FIDO} saved!`);
+    };
+    const actionTd = document.createElement("td");
+    actionTd.appendChild(saveBtn);
+    tr.appendChild(actionTd);
+    tbody.appendChild(tr);
+  
+  }
+  const saveAllBtn = document.createElement("button");
+  saveAllBtn.textContent = "💾 Save All";
+  saveAllBtn.className = "mt-4 mr-4 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700";
+  saveAllBtn.onclick = () => {
+    const updatedData = [];
+    const rows = table.querySelectorAll("tbody tr");
+    rows.forEach(row => {
+      const original = [...row.querySelectorAll("td")].slice(0, headers.length).map(td => td.textContent.trim());
+      const inputs = [...row.querySelectorAll("input")];
+      const updated = {
+        FIDO: original[0],
+        Original: {
+          DESCRIPTION: original[headers.indexOf("DESCRIPTION")],
+          CATEGORY: original[headers.indexOf("CATEGORY")],
+          BRAND: original[headers.indexOf("BRAND")]
+        },
+        Updated: {
+          DESCRIPTION: inputs[0]?.value || "",
+          CATEGORY: inputs[1]?.value || "",
+          BRAND: inputs[2]?.value || ""
+        }
+      };
+      updatedData.push(updated);
+    });
+    localStorage.setItem(`review_${project.name}`, JSON.stringify(updatedData));
+    alert("✅ All FIDOs saved!");
+  };
+  container.appendChild(table);
+  container.appendChild(saveAllBtn);
+  
+}
+</script>
+</head>
+<body class="bg-gray-50 text-black dark:bg-gray-900 dark:text-white">
+  <div class="toolbar flex justify-between items-center px-6 py-4 shadow bg-gray-800 text-white">
+    <div class="text-xl font-bold">FIDO Review Tool</div>
+    <div class="space-x-4">
+      <button onclick="toggleFlagForm()" class="hover:underline">🚩 Flag Issue</button>
+      <button onclick="showAdminPage()" class="hover:underline">🛠️ Admin</button>
+      <button onclick="showMainPage()" class="hover:underline">🏠 Home</button>
+      <button onclick="toggleTheme()" class="hover:underline">🌓 Toggle Theme</button>
+      <button onclick="logoutUser()" class="hover:underline">🔒 Logout</button>
+      <span id="welcomeUser" class="text-sm"></span>
+    </div>
+  </div>
+
+  <div id="loginPanel" class="mt-24 px-4 text-black dark:text-white animate-fade-in">
+    <h3 class="text-2xl font-bold mb-6 text-center">Welcome to the FIDO Review Tool</h3>
+    <label class="block mb-2">Name:</label>
+    <input type="text" id="loginName" class="w-full p-2 mb-4 border rounded bg-white text-black">
+    <div class="mb-4">
+      <label class="flex items-center mb-2 text-gray-800 dark:text-white">
+        <input type="radio" name="userRole" value="reviewer" class="mr-3">
+        <span>🧑 Reviewer</span>
+      </label>
+      <label class="flex items-center text-gray-800 dark:text-white">
+        <input type="radio" name="userRole" value="admin" class="mr-3">
+        <span>🛠️ Admin</span>
+      </label>
+    </div>
+    <button onclick="loginUser()" class="w-full mt-4 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 shadow">Login</button>
+  </div>
+
+  <div id="mainPage" style="display:none">
+    <div class="grid grid-cols-1 gap-6 max-w-2xl mx-auto mt-8">
+      <div class="p-6 bg-blue-100 hover:bg-blue-200 border-l-4 border-blue-500 rounded shadow-md transition">
+        <button class="text-blue-800 text-lg font-semibold w-full text-left" onclick="showQueueProjects('nonLicensed')">
+          📂 Non-licensed FIDO Review Projects
+        </button>
+      </div>
+      <div class="p-6 bg-green-100 hover:bg-green-200 border-l-4 border-green-500 rounded shadow-md transition">
+        <button class="text-green-800 text-lg font-semibold w-full text-left" onclick="showQueueProjects('licensed')">
+          📁 Licensed FIDO Review Projects
+        </button>
+      </div>
+      <div class="p-6 bg-red-100 hover:bg-red-200 border-l-4 border-red-500 rounded shadow-md transition">
+        <button class="text-red-800 text-lg font-semibold w-full text-left flex items-center" onclick="showQueueProjects('catq')">
+          <span class="inline-block w-5 h-5 mr-2 bg-center bg-contain" style="background-image:url('/mnt/data/6eccc1d1-54c6-4949-9383-48902aad7019.png')"></span>
+          CATQ
+        </button>
+      </div>
+    </div>
+    <!-- queue cards and admin upload will appear here -->
+  </div>
+
+  <div id="adminPage" style="display:none">
+    <div class="max-w-xl mx-auto mt-8 p-6 bg-white dark:bg-gray-800 rounded shadow">
+      <h2 class="text-xl font-semibold mb-4">🛠️ Upload FIDO Project</h2>
+      <label for="projectQueue" class="block mb-2">Select Queue:</label>
+      <select id="projectQueue" class="w-full mb-4 p-2 border rounded">
+        <option value="nonLicensed">Non-licensed</option>
+        <option value="licensed">Licensed</option>
+        <option value="catq">CATQ</option>
+      </select>
+      <label for="fileUpload" class="block mb-2">Upload CSV File:</label>
+      <input type="file" id="fileUpload" accept=".csv" class="w-full mb-4">
+      <button onclick="handleUpload()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Upload Project</button>
+    </div>
+  </div>
+
+  <div id="flagForm" style="display:none" class="max-w-xl mx-auto mt-8 p-6 bg-white dark:bg-gray-800 rounded shadow">
+    <h2 class="text-xl font-semibold mb-4">🚩 Submit a Flag</h2>
+    <label class="block mb-2">Submitted by:</label>
+    <input type="text" id="flagSubmitter" class="w-full p-2 mb-4 border rounded text-black" placeholder="Your name">
+    <label class="block mb-2">FIDO:</label>
+    <input type="text" id="flagFido" class="w-full p-2 mb-4 border rounded text-black" placeholder="FIDO ID">
+    <label class="block mb-2">Issue:</label>
+    <textarea id="flagIssue" class="w-full p-2 mb-4 border rounded text-black" placeholder="Describe the issue"></textarea>
+    <button onclick="submitFlag()" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">Submit Flag</button>
+  </div>
+  </div>
+
+  <script>
+    let currentUser = JSON.parse(localStorage.getItem("currentUser")) || null;
+
+    function showMainPage() {
+      document.getElementById('loginPanel').style.display = 'none';
+      document.getElementById('adminPage').style.display = 'none';
+      document.getElementById('mainPage').style.display = 'block';
     }
-    .floating-panel {
-        position: fixed;
-        top: 100px;
-        right: 20px;
-        width: 230px;
-        background-color: #f9f9f9;
-        padding: 1rem;
-        border-radius: 8px;
-        box-shadow: 0 0 10px rgba(0,0,0,0.1);
-        z-index: 999;
+
+    function showAdminPage() {
+      if (!currentUser || currentUser.role !== "admin") {
+        alert("Access denied. Admins only.");
+        return;
+      }
+      document.getElementById('mainPage').style.display = 'none';
+      document.getElementById('adminPage').style.display = 'block';
     }
-    </style>
-""", unsafe_allow_html=True)
 
-# --- Login Page ---
-if st.session_state.page == "login":
-    st.title("🔐 FIDO Review Tool")
-    st.subheader("Select your role to begin:")
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("👤 Reviewer"):
-            st.session_state.role = "reviewer"
-            st.session_state.page = "brand_list"
-    with col2:
-        if st.button("🛠️ Admin"):
-            st.session_state.role = "admin"
-            st.session_state.page = "upload"
+    function toggleFlagForm() {
+      const form = document.getElementById('flagForm');
+      form.style.display = form.style.display === 'none' ? 'block' : 'none';
+    }
 
-# --- Admin Upload Page ---
-if st.session_state.page == "upload" and st.session_state.role == "admin":
-    st.title("🛠️ Admin: Upload FIDO File")
-    uploaded_file = st.file_uploader("Upload CSV File", type="csv")
-    if uploaded_file:
-        df = pd.read_csv(uploaded_file)
-        st.session_state.project_data = df
-        st.success("✅ File uploaded. Proceed to review projects.")
-        st.session_state.page = "brand_list"
+    function logoutUser() {
+      localStorage.removeItem("currentUser");
+      currentUser = null;
+      document.getElementById('mainPage').style.display = 'none';
+      document.getElementById('adminPage').style.display = 'none';
+      document.getElementById('loginPanel').style.display = 'block';
+    }
 
-# --- Brand List Page ---
-if st.session_state.page == "brand_list":
-    st.title("📋 Brand Review Projects")
-    df = st.session_state.project_data
-    if df is not None:
-        brand_list = sorted(df["BRAND"].dropna().unique().tolist())
-        for brand in brand_list:
-            if st.button(f"🔎 Review '{brand}'", use_container_width=True):
-                st.session_state.selected_brand = brand
-                st.session_state.page = "brand_review"
-                break
-    else:
-        st.warning("No data loaded. Please ask an admin to upload a file.")
+    function loginUser() {
+      const username = document.getElementById('loginName').value;
+      const role = document.querySelector('input[name="userRole"]:checked')?.value;
+      if (username && role) {
+        currentUser = { name: username, role: role };
+        localStorage.setItem("currentUser", JSON.stringify(currentUser));
+        document.getElementById('welcomeUser').textContent = `Welcome, ${username} (${role})`;
+        document.getElementById("loginPanel").style.display = "none";
+        showMainPage();
+      } else {
+        alert("Please enter your name and select a role.");
+      }
+    }
 
-# --- Brand Review Page ---
-if st.session_state.page == "brand_review":
-    df = st.session_state.project_data
-    brand = st.session_state.selected_brand
-    brand_df = df[df["BRAND"] == brand].copy().reset_index(drop=True)
+    function toggleTheme() {
+      document.body.classList.toggle('dark');
+    }
 
-    # Sticky Header
-    st.markdown(f"<div class='sticky-header'><h2>🧾 Reviewing Brand: {brand}</h2></div>", unsafe_allow_html=True)
-
-    # Floating control panel
-    with st.sidebar:
-        st.markdown("### 🛠️ Controls")
-        if st.button("💾 Save All"):
-            for i, row in brand_df.iterrows():
-                fido = row["FIDO"]
-                st.session_state.saved_reviews[fido] = {
-                    "FIDO": fido,
-                    "BARCODE": row["BARCODE"],
-                    "Original Description": row["DESCRIPTION"],
-                    "Updated Description": st.session_state.get(f"desc_{i}", row["DESCRIPTION"]),
-                    "Original Category": row["CATEGORY"],
-                    "Updated Category": st.session_state.get(f"cat_{i}", row["CATEGORY"]),
-                    "Original Brand": row["BRAND"],
-                    "Updated Brand": st.session_state.get(f"brand_{i}", row["BRAND"]),
-                    "BRAND_ID": row.get("BRAND_ID", ""),
-                    "Is Brand ID Null?": row["Is Brand ID Null?"],
-                    "GMV L365d from Data Pull Date": row["GMV L365d from Data Pull Date"],
-                    "No Change": st.session_state.get(f"correct_{i}", False),
-                    "Reviewer Notes": st.session_state.get(f"note_{i}", "")
-                }
-            st.success("✅ All changes saved.")
-
-        if st.session_state.role == "admin" and st.session_state.saved_reviews:
-            export_df = pd.DataFrame(st.session_state.saved_reviews.values())
-            csv = export_df.to_csv(index=False).encode("utf-8")
-            st.download_button(
-                label="⬇️ Download Reviewed Data",
-                data=csv,
-                file_name=f"Reviewed_{brand.replace(' ', '_')}_FIDO.csv",
-                mime="text/csv"
-            )
-
-        if st.button("🔙 Back to Brand List"):
-            st.session_state.page = "brand_list"
-            st.session_state.selected_brand = None
-
-    # Main FIDO Display Loop
-    for i, row in brand_df.iterrows():
-        st.markdown("----")
-        st.subheader(f"FIDO: {row['FIDO']}")
-        st.text(f"UPC: {row['BARCODE']}")
-        st.text(f"Brand ID: {row.get('BRAND_ID', 'N/A')}")
-        st.text(f"Original Brand: {row['BRAND']}")
-        st.text(f"Category: {row['CATEGORY']}")
-        st.text(f"Description: {row['DESCRIPTION']}")
-        st.text(f"GMV: {row['GMV L365d from Data Pull Date']}")
-        st.text(f"Brand ID Status: {row['Is Brand ID Null?']}")
-
-        # Inputs
-        updated_desc = st.text_area(f"📝 Updated Description", value=row["DESCRIPTION"], key=f"desc_{i}")
-        updated_cat = st.text_input(f"📦 Updated Category", value=row["CATEGORY"], key=f"cat_{i}")
-        updated_brand = st.text_input(f"🏷️ Updated Brand", value=row["BRAND"], key=f"brand_{i}")
-        mark_correct = st.checkbox("✅ No Change", key=f"correct_{i}")
-        reviewer_note = st.text_input("🗒️ Notes", key=f"note_{i}")
-
-        if st.button(f"💾 Save FIDO {row['FIDO']}", key=f"save_{i}"):
-            st.session_state.saved_reviews[row["FIDO"]] = {
-                "FIDO": row["FIDO"],
-                "BARCODE": row["BARCODE"],
-                "Original Description": row["DESCRIPTION"],
-                "Updated Description": updated_desc,
-                "Original Category": row["CATEGORY"],
-                "Updated Category": updated_cat,
-                "Original Brand": row["BRAND"],
-                "Updated Brand": updated_brand,
-                "BRAND_ID": row.get("BRAND_ID", ""),
-                "Is Brand ID Null?": row["Is Brand ID Null?"],
-                "GMV L365d from Data Pull Date": row["GMV L365d from Data Pull Date"],
-                "No Change": mark_correct,
-                "Reviewer Notes": reviewer_note
-            }
-            st.success(f"✅ Saved {row['FIDO']}")
+    if (currentUser) {
+      document.getElementById("welcomeUser").textContent = `Welcome, ${currentUser.name} (${currentUser.role})`;
+      showMainPage();
+    } else {
+      document.getElementById("loginPanel").style.display = "block";
+    }
+  </script>
+</body>
+</html>
